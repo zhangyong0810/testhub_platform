@@ -1,0 +1,320 @@
+{
+  "_meta": {
+    "source_project": "testcase-kit",
+    "source_version": "v2.1 (2026-05)",
+    "target_module": "testhub_platform.requirement_analysis",
+    "config_type": "generation_behavior_config",
+    "created_at": "2026-05-21",
+    "description": "从 testcase-kit 项目提取的测试用例生成行为配置，用于 TestHub AI 需求分析模块"
+  },
+
+  "test_conventions": {
+    "_description": "测试用例生成格式规范",
+    "version": "1.2",
+    "last_updated": "2026-04-15",
+    "xmind_hierarchy": {
+      "root": "[需求名] V[版本号] 测试用例",
+      "L1_portal": "端/维度（App / Web / 多端同步 / API）",
+      "L2_module": "功能子模块（名词短语）",
+      "L3_test_point": "测试点 = 场景分组（名词短语，每个 L2 下 2~6 个）",
+      "L4_test_title": "测试标题 = 具体场景（动词短语，≤20字，每个 L3 下 2~5 条）",
+      "L5_steps": "操作步骤 + 预期结果（仅复杂场景才写）",
+      "level_merge_rule": "如果某个 L3 下只有 1 条用例，合并到相邻 L3 或提升到 L2 层"
+    },
+    "naming_rules": {
+      "L2": { "style": "名词短语", "example_good": "数据列表 / 批量操作", "example_bad": "测试数据列表功能" },
+      "L3": { "style": "名词短语（与 L2 不同维度）", "example_good": "列表加载 / 权限校验", "example_bad": "数据列表加载（重复 L2）" },
+      "L4": { "style": "动词短语或状态描述，≤20字", "example_good": "下拉刷新列表 / 无权限时入口隐藏", "example_bad": "验证下拉刷新功能的正确性" },
+      "forbidden": ["验证XXX功能", "测试XXX是否正常", "测试点名超过 25 字", "L2/L3/L4 间信息重复"],
+      "L3_vs_L4_anti_duplicate": "L3 是分组标签，L4 是具体场景。禁止：测试点=新增记录 + 测试标题=新增一条记录成功（长短版关系）"
+    },
+    "priority_definitions": {
+      "P0": { "name": "阻断性", "criteria": "功能完全不可用", "examples": "页面打不开、核心接口报错、数据完全丢失" },
+      "P1": { "name": "核心路径", "criteria": "主流程的关键验证", "examples": "状态变更、多端同步、计数正确、权限控制" },
+      "P2": { "name": "辅助验证", "criteria": "边界、异常、UI 细节", "examples": "边界值展示、空状态兜底图、排序、翻页边界" }
+    },
+    "excel_columns": {
+      "columns": ["模块(L1)", "子模块(L2)", "用例编号(TC_缩写_序号)", "测试点(L3)", "端口", "优先级", "测试标题(L4)", "前置条件", "测试步骤", "预期结果"],
+      "numbering_format": "TC_[模块缩写]_[序号]",
+      "portal_values": ["Web", "App", "App/Web"]
+    },
+    "markdown_intermediate_format": {
+      "L1_as_heading": "模块(L1)写在 ## heading 中，不作为表格列",
+      "table_start": "从 用例编号 开始，不包含 模块 列",
+      "forbidden": "禁止把模块写进表格列"
+    },
+    "test_data_rules": {
+      "explicit_numbers": "需求文档有具体数字 → 照搬原文",
+      "no_numbers": "需求文档无具体数字 → 用相对描述（如'数量+1'），不编造具体值",
+      "preconditions": "前置条件用条件式（如'存在未读数据'），不写假定数量"
+    },
+    "step_writing_rules": {
+      "forbid_arrow_chaining": "禁止用→连接多个动作，统一用编号步骤分行",
+      "compress_multi_portal": "多端/多入口验证步骤要压缩，不逐端重复"
+    }
+  },
+
+  "risk_catalog": {
+    "_description": "高风险漏测提醒规则，共 14 条，用于生成后自检",
+    "version": "1.0",
+    "last_updated": "2026-04-10",
+    "rules": [
+      {
+        "id": "permission_guard",
+        "label": "权限守卫",
+        "match_signals": { "risk_tags": ["permission"] },
+        "must_cover": ["有权限可见可操作", "无权限不可见或不可操作", "后端越权拦截"],
+        "review_focus": ["是否同时覆盖正向与反向权限", "是否遗漏后端拦截或接口越权"],
+        "confirm_if_unmentioned": "角色差异或后端拦截条件未写明时，放入待确认"
+      },
+      {
+        "id": "list_result_consistency",
+        "label": "列表结果一致性",
+        "match_signals": { "interaction_modes": ["list", "filter"] },
+        "must_cover": ["查询/筛选后结果命中", "重置后结果恢复", "分页或每页条数变化后结果一致"],
+        "review_focus": ["是否把查询、重置、分页联动拆开检查", "是否遗漏空结果或结果刷新"],
+        "confirm_if_unmentioned": "若分页规则或默认排序未写明，放入待确认"
+      },
+      {
+        "id": "tree_scope_consistency",
+        "label": "树形范围一致性",
+        "match_signals": { "interaction_modes": ["tree"] },
+        "must_cover": ["节点展开/路径选择", "回显正确", "权限或可见范围差异下的节点结果"],
+        "review_focus": ["是否遗漏切换后回显", "是否遗漏不同账号或可见范围差异"],
+        "confirm_if_unmentioned": "树节点层级或默认组织未写明时，放入待确认"
+      },
+      {
+        "id": "batch_selection_consistency",
+        "label": "批量选择一致性",
+        "match_signals": { "interaction_modes": ["batch"] },
+        "must_cover": ["全选/取消全选", "部分勾选后的状态一致", "批量结果与单条结果一致"],
+        "review_focus": ["是否遗漏全选联动", "是否遗漏批量后列表状态刷新"],
+        "confirm_if_unmentioned": "批量上限或跨页规则未写明时，放入待确认"
+      },
+      {
+        "id": "cross_end_sync_visibility",
+        "label": "跨端同步可见性",
+        "match_signals": { "platforms": ["web", "app"], "side_effects": ["sync"] },
+        "must_cover": ["端A操作后端B可见", "非实时结果允许刷新后可见", "切换账号后数据不串"],
+        "review_focus": ["是否只测了单向同步", "是否遗漏刷新后可见或账号切换残留"],
+        "confirm_if_unmentioned": "同步时效或失败补偿未写明时，放入待确认"
+      },
+      {
+        "id": "notification_delivery_consistency",
+        "label": "通知送达一致性",
+        "match_signals": { "platforms": ["app"], "side_effects": ["push", "badge"] },
+        "must_cover": ["在线/离线到达", "角标与消息状态一致", "点击后跳转或状态回写正确"],
+        "review_focus": ["是否遗漏在线/离线差异", "是否遗漏角标清除或回写"],
+        "confirm_if_unmentioned": "机型/推送通道/免打扰规则未写明时，放入待确认"
+      },
+      {
+        "id": "duplicate_old_value_guard",
+        "label": "重复旧值守卫",
+        "match_signals": { "risk_tags": ["duplicate"] },
+        "must_cover": ["重复值拦截", "修改旧值后的兼容回显", "唯一性边界值校验"],
+        "review_focus": ["是否遗漏编辑场景", "是否遗漏旧数据兼容或改名回显"],
+        "confirm_if_unmentioned": "唯一性范围或旧值迁移规则未写明时，放入待确认"
+      },
+      {
+        "id": "state_flow_feedback",
+        "label": "状态流转反馈",
+        "match_signals": { "interaction_modes": ["state_flow"] },
+        "must_cover": ["主状态流转成功", "不满足前置条件时被拦截", "状态变化后的列表/详情反馈一致"],
+        "review_focus": ["是否遗漏失败路径", "是否遗漏流转后的反馈或回显"],
+        "confirm_if_unmentioned": "前置条件或失败提示未写明时，放入待确认"
+      },
+      {
+        "id": "form_submission_guard",
+        "label": "表单提交守卫",
+        "match_signals": { "interaction_modes": ["form"], "component_types": ["form"] },
+        "must_cover": ["前端拦截与后端校验一致", "保存成功后的回显或编辑回填正确", "必填缺失/非法值/重复值/旧值兼容不只测成功路径"],
+        "review_focus": ["是否只测了保存成功", "是否遗漏前后端校验差异或编辑回填一致性"],
+        "confirm_if_unmentioned": "必填规则、唯一性范围或回显口径未写明时，放入待确认"
+      },
+      {
+        "id": "import_export_integrity",
+        "label": "导入导出完整性",
+        "match_signals": { "interaction_modes": ["sync", "batch"], "entities": ["record", "account", "organization", "person"] },
+        "must_cover": ["导入成功/失败反馈明确", "导入更新覆盖规则一致", "导出文件可用且字段完整", "异常数据有清晰回执"],
+        "review_focus": ["是否遗漏导入更新覆盖规则", "是否遗漏失败回执或导出结果可用性"],
+        "confirm_if_unmentioned": "覆盖规则、模板字段或异常数据处理未写明时，放入待确认"
+      },
+      {
+        "id": "audit_log_fidelity",
+        "label": "审计日志保真",
+        "match_signals": { "risk_tags": ["consistency"], "side_effects": ["sync"], "entities": ["log", "record", "object"] },
+        "must_cover": ["菜单、操作类型、对象名称、对象ID、成功失败结果准确", "新增/删除/复制/审核/导入更新/跨系统同步后的日志完整", "不只看有日志，还要看日志内容正确"],
+        "review_focus": ["是否只校验了日志存在", "是否遗漏失败态、同步后或导入更新后的日志保真"],
+        "confirm_if_unmentioned": "日志字段口径或失败态是否记录未写明时，放入待确认"
+      },
+      {
+        "id": "refresh_cache_consistency",
+        "label": "刷新缓存一致性",
+        "match_signals": { "side_effects": ["cache", "sync"], "interaction_modes": ["list", "detail", "state_flow"] },
+        "must_cover": ["当前页/返回页/聚合入口/切tab/切账号/重新进入页面后状态一致", "手动刷新后才正常或旧状态残留要被识别"],
+        "review_focus": ["是否遗漏刷新后可见或返回后回写", "是否遗漏切tab、切账号或重进页面的残留状态"],
+        "confirm_if_unmentioned": "实时性、刷新触发条件或缓存失效规则未写明时，放入待确认"
+      },
+      {
+        "id": "role_org_binding_consistency",
+        "label": "角色组织绑定一致性",
+        "match_signals": { "roles": ["role"], "entities": ["organization", "person", "permission"], "risk_tags": ["permission", "consistency"] },
+        "must_cover": ["新增或变更后账号-角色-组织绑定一起更新", "本组织/跨组织/多组织/多账号场景口径一致", "导出/日志/详情/列表中组织角色字段一致"],
+        "review_focus": ["是否遗漏绑定变更后的可见范围", "是否遗漏组织角色字段在导出/日志/详情中的一致性"],
+        "confirm_if_unmentioned": "默认角色、绑定规则或跨组织口径未写明时，放入待确认"
+      },
+      {
+        "id": "attachment_handling_guard",
+        "label": "附件处理守卫",
+        "match_signals": { "component_types": ["modal", "form"], "entities": ["file", "attachment", "record"] },
+        "must_cover": ["支持/不支持格式校验明确", "上传后提交/保存/删除/预览联动正确", "预览能力/空白预览/失败提示/数量边界覆盖到位"],
+        "review_focus": ["是否遗漏不支持格式或大小边界", "是否遗漏上传成功后后续动作失败、预览空白或失败提示"],
+        "confirm_if_unmentioned": "支持格式、大小上限或预览范围未写明时，放入待确认"
+      }
+    ]
+  },
+
+  "test_pattern_catalog": {
+    "_description": "功能类型 → 标准测试矩阵，共 10 个模式",
+    "version": "1.0",
+    "last_updated": "2026-04-10",
+    "patterns": [
+      {
+        "id": "count_badge", "label": "数量角标",
+        "match_signals": { "ui_patterns": ["count_badge"] },
+        "coverage_matrix": ["展示正确", "数量变化回写", "清零后状态一致", "上限展示边界"],
+        "review_focus": ["是否遗漏角标回写", "是否遗漏上限显示或清零"],
+        "constraints": "仅在文档或当前页面已出现角标/红点/未读提示时展开"
+      },
+      {
+        "id": "segmented_navigation", "label": "分段导航",
+        "match_signals": { "ui_patterns": ["segmented_navigation"] },
+        "coverage_matrix": ["切换动作", "切换后数据正确", "切换后状态保持"],
+        "review_focus": ["是否遗漏切换后的数据差异", "是否遗漏返回后状态保持"],
+        "constraints": "仅在文档或当前页面已出现 Tab/标签/顶部分类时展开"
+      },
+      {
+        "id": "list_loading", "label": "列表加载",
+        "match_signals": { "ui_patterns": ["list_loading"] },
+        "coverage_matrix": ["首屏加载", "分页或增量加载", "无更多数据", "刷新后结果一致"],
+        "review_focus": ["是否遗漏分页/加载更多", "是否遗漏刷新或边界页"],
+        "constraints": "仅在文档或当前页面已出现列表加载行为时展开"
+      },
+      {
+        "id": "push_delivery", "label": "推送到达",
+        "match_signals": { "platforms": ["app"], "side_effects": ["push"] },
+        "coverage_matrix": ["在线到达", "离线到达", "点击后状态回写"],
+        "review_focus": ["是否遗漏在线/离线差异", "是否遗漏点击后的跳转或状态变化"],
+        "constraints": "仅在文档已出现推送/通知栏等到达事实时展开"
+      },
+      {
+        "id": "cross_end_sync", "label": "跨端同步",
+        "match_signals": { "platforms": ["web", "app"], "side_effects": ["sync"] },
+        "coverage_matrix": ["端A到端B可见", "端B到端A可见", "刷新后可见", "切换账号后不串数据"],
+        "review_focus": ["是否只测了单向同步", "是否遗漏刷新后可见或账号切换残留"],
+        "constraints": "仅在文档已出现同步/回写/跨端事实时展开",
+        "typical_scenarios": {
+          "消息已读": "App 点击 → Web/景云销实时变为已读",
+          "消息删除": "App 删除 → Web/景云销手动刷新后消失",
+          "审批状态": "Web 审批 → App 端待办数量实时更新",
+          "公告发布": "Web 发布 → App 端公告中心实时展示",
+          "账号切换": "切换账号后，角标、缓存、数据不串"
+        }
+      },
+      {
+        "id": "filter_form", "label": "筛选表单",
+        "match_signals": { "ui_patterns": ["filter_form"] },
+        "coverage_matrix": ["单条件查询", "组合筛选", "重置恢复", "输入或选择后的结果命中"],
+        "review_focus": ["是否遗漏组合筛选", "是否遗漏重置或输入类边界"],
+        "constraints": "仅在文档或当前页面已出现筛选/查询/重置控件时展开"
+      },
+      {
+        "id": "empty_state", "label": "空状态",
+        "match_signals": { "ui_patterns": ["empty_state"] },
+        "coverage_matrix": ["无数据提示", "无结果提示", "恢复后消失"],
+        "review_focus": ["是否遗漏空结果和恢复后消失", "是否只写了正常列表而没写空状态"],
+        "constraints": "仅在文档或当前页面已出现空状态/无结果事实时展开"
+      },
+      {
+        "id": "tree_select", "label": "树形选择",
+        "match_signals": { "component_types": ["tree_select"] },
+        "coverage_matrix": ["节点展开", "路径选择", "切换后回显", "权限范围差异"],
+        "review_focus": ["是否遗漏回显", "是否遗漏不同账号或权限范围差异"],
+        "constraints": "仅在文档或当前页面已出现组织树/级联树时展开"
+      },
+      {
+        "id": "selection_batch", "label": "批量选择",
+        "match_signals": { "ui_patterns": ["selection_batch"] },
+        "coverage_matrix": ["全选", "部分选中", "批量结果回写"],
+        "review_focus": ["是否遗漏全选联动", "是否遗漏批量后的列表状态变化"],
+        "constraints": "仅在文档或当前页面已出现勾选/全选/批量操作时展开"
+      },
+      {
+        "id": "modal_confirmation", "label": "确认弹窗",
+        "match_signals": { "ui_patterns": ["modal_confirmation"] },
+        "coverage_matrix": ["弹出", "确认", "取消", "关闭后反馈"],
+        "review_focus": ["是否遗漏取消路径", "是否遗漏确认后的反馈回写"],
+        "constraints": "仅在文档或当前页面已出现弹窗/抽屉/确认框时展开"
+      }
+    ]
+  },
+
+  "generation_behavior_config": {
+    "_description": "AI 测试用例生成行为规则",
+    "core_principles": {
+      "fidelity_first": "先保真，再扩展。先把文档显式规则和页面事实看清，再组织测试点",
+      "original_input_first": "用户本轮显式提供的原始需求材料是第一输入，知识层、风险库只补上下文和复查视角",
+      "scope_gate": "知识层/风险库触发的端口/功能维度只能放入'未升格/待关注'，不能绕过 Scope Gate 生成正式用例",
+      "no_skeleton_compression": "不要把文档压缩成骨架、不要让知识库替代推理",
+      "explicit_fact_ledger": "生成前先把显式事实按原子粒度列清（source_fact_ledger），避免文档规则被压缩成骨架"
+    },
+    "generation_self_check": {
+      "_description": "生成后三段式自检（必须执行）",
+      "coverage": { "task": "逐条对照需求、每个入口、UI 事实、bug_patterns 匹配", "goal": "确认需求显式规则是否已覆盖" },
+      "fidelity": { "task": "检查压缩、泛化、语义丢失、来源回溯", "goal": "确认关键规则是否被压缩丢失" },
+      "grouping": { "task": "测试点语义单一性、混组检查、知识层触发的降级处理", "goal": "确认测试点分组清晰、没有混挂不同问题类型" }
+    },
+    "scope_and_exception_rule": "当文档显式定义了范围、例外、互斥分支或比较关系时，生成结果不能只保留变化侧，必须保留不受影响侧或例外侧的断言",
+    "page_type_judgment": {
+      "_description": "先识别对象类型，再决定展开方式",
+      "types": ["列表 (list)", "表单 (form)", "流程 (state_flow)", "详情 (detail)", "聚合页 (dashboard)"],
+      "structure_decomposition_rule": "只有页面存在明确数据结构时，才拆字段、筛选、操作、分页等维度"
+    }
+  },
+
+  "workflow_reference": {
+    "_description": "从 testcase-kit 提取的工作流关键配置",
+    "stages": {
+      "stage_0_input_processing": {
+        "docx": "直接读原文，不做 docx→md 中转，按需提取图片",
+        "pdf": "直接读原文，仅不稳定时才辅助转换",
+        "images_prototypes": "先理解页面事实，再按需补知识",
+        "xmind_template": "import_xmind_to_excel.py",
+        "xmind_freeform": "解析层级或要求文本输入"
+      },
+      "stage_1_read_knowledge": {
+        "mandatory": ["product_model.md (按需章节)", "test_conventions.md", "bug_patterns.md", "clarification_method.md"],
+        "auto_match": ["扫描 clarification/lessons/index.json，命中关键词则读对应 lesson"],
+        "optional": ["reference_cases (参考案例)", "risk_catalog.json (风险提醒)", "test_pattern_catalog.json (测试经验)", "prototype_summary (原型摘要)", "processed_docs (检索索引)", "raw_docs (原始文档)"]
+      },
+      "stage_2_generation": {
+        "steps": [
+          "读原始材料，识别功能全貌",
+          "先保真再扩展",
+          "提取 source_fact_ledger（原子级显式事实清单）",
+          "判断页面主对象类型",
+          "必要时做结构拆解",
+          "澄清歧义/缺失/矛盾",
+          "Scope Gate 门禁",
+          "数据权限类场景矩阵",
+          "推理生成",
+          "防压缩与分组控制",
+          "按需补充原型/参考案例",
+          "输出 Markdown 表格结构"
+        ]
+      },
+      "stage_3_review": "Coverage / Fidelity / Grouping 三段式自检",
+      "stage_4_export": "MD → Excel → XMind 全链路自动导出，文件名格式 [标题名]_[YYYYMMDDHHmmss]"
+    }
+  }
+}
